@@ -19,7 +19,7 @@
 #include "rbdl/Logging.h"
 #include "rbdl/Joint.h"
 #include "rbdl/Body.h"
-
+#undef max
 // std::vectors containing any objects that have Eigen matrices or vectors
 // as members need to have a special allocater. This can be achieved with
 // the following macro.

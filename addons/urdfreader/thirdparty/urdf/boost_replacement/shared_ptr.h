@@ -34,6 +34,7 @@ Dec 2011 - Added deferencing operator
 #include <assert.h>
 
 #ifdef _WIN32
+#define NOMINMAX
 #include <windows.h>
 
 class my_shared_count {

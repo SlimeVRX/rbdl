@@ -1,86 +1,107 @@
-IF (RBDL_USE_PYTHON_2)
-  FIND_PROGRAM ( PYTHON "python2" )
-  SET (Python_ADDITIONAL_VERSIONS 2.7)
-  INCLUDE ( FindNumPy2 )
-  MESSAGE(STATUS ${PYTHON_NUMPY_2_INCLUDE_DIR})
-  SET( PYTHON_BIN python2)
-ELSE(RBDL_USE_PYTHON_2)
-  FIND_PROGRAM ( PYTHON "python3" )
-  SET (Python_ADDITIONAL_VERSIONS 3.7)
-  INCLUDE ( FindNumPy3 )
-  MESSAGE(STATUS ${PYTHON_NUMPY_3_INCLUDE_DIR})
-  SET( PYTHON_BIN python3)
-ENDIF (RBDL_USE_PYTHON_2)
+#!/usr/bin/python
+#
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-INCLUDE ( UseCython )
 
 
-FILE( COPY "crbdl.pxd" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+SET(PYTHON_VERSION_DIFF_PHYSICS "" CACHE STRING "Python version pyrbdl will use.")
+SET(Python_ADDITIONAL_VERSIONS 3 3.6 3.5 3.4 3.3 3.2 3.1 3.0 2.7 2.7.12 2.7.10 2.7.3 )
+SET_PROPERTY(CACHE PYTHON_VERSION_DIFF_PHYSICS PROPERTY STRINGS ${Python_ADDITIONAL_VERSIONS})
+SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/build3/cmake ${CMAKE_MODULE_PATH})
+OPTION(EXACT_PYTHON_VERSION "Require Python and match PYTHON_VERSION_DIFF_PHYSICS exactly, e.g. 2.7.12" OFF)
+IF(EXACT_PYTHON_VERSION)
+    set(EXACT_PYTHON_VERSION_FLAG EXACT REQUIRED)
+ENDIF(EXACT_PYTHON_VERSION)
+# first find the python interpreter
+FIND_PACKAGE(PythonInterp ${PYTHON_VERSION_DIFF_PHYSICS} ${EXACT_PYTHON_VERSION_FLAG})
+# python library should exactly match that of the interpreter
+# the following can result in fatal error if you don't have the right python configuration
+FIND_PACKAGE(PythonLibs ${PYTHON_VERSION_STRING} EXACT)
 
-CONFIGURE_FILE (
-  ${CMAKE_CURRENT_SOURCE_DIR}/setup.py.cmake
-  ${CMAKE_CURRENT_BINARY_DIR}/setup.py
-  )
 
-# Process the rbdl-wrapper.pyx to generate rbdl.pyx BEFORE build time
-# else cython_add_module will complain on configuration
-EXECUTE_PROCESS ( 
-  OUTPUT_VARIABLE WRAPPERGEN_OUT
-  COMMAND ${PYTHON_BIN} 
-  ${CMAKE_CURRENT_SOURCE_DIR}/wrappergen.py
-  ${CMAKE_CURRENT_SOURCE_DIR}/rbdl-wrapper.pyx 
-  ${CMAKE_CURRENT_BINARY_DIR}/rbdl.pyx
+FIND_PACKAGE(PythonLibs)
+
+
+
+
+
+IF(WIN32)
+	SET(BUILD_SHARED_LIBS OFF CACHE BOOL "Shared Libs" FORCE)
+ELSE(WIN32)
+	SET(BUILD_SHARED_LIBS ON CACHE BOOL "Shared Libs" FORCE)
+ENDIF(WIN32)
+
+IF(APPLE)
+	OPTION(BUILD_DIFF_PHYSICS_MAC_USE_PYTHON_FRAMEWORK "Set when you want to use the Python Framework on Mac" ON)
+	IF(NOT BUILD_DIFF_PHYSICS_MAC_USE_PYTHON_FRAMEWORK)
+		add_definitions(-DB3_NO_PYTHON_FRAMEWORK)
+	ENDIF(NOT BUILD_DIFF_PHYSICS_MAC_USE_PYTHON_FRAMEWORK)
+	OPTION(BUILD_DIFF_PHYSICS_SHOW_PY_VERSION "Set when you want to show the PY_MAJOR_VERSION and PY_MAJOR_VERSION using #pragme message." OFF)
+	IF(BUILD_DIFF_PHYSICS_SHOW_PY_VERSION)
+		add_definitions(-DB3_DUMP_PYTHON_VERSION)
+	ENDIF()
+ENDIF(APPLE)
+
+
+INCLUDE_DIRECTORIES( 
+  ${RBDL_SOURCE_DIR}/addons/urdfreader
+  ${RBDL_SOURCE_DIR}/include
+  ${RBDL_SOURCE_DIR}/third_party/pybind11/include
+	${PYTHON_INCLUDE_DIRS}
+  ${PYTHON_NUMPY_INCLUDE_DIR}
 )
-MESSAGE (STATUS ${WRAPPERGEN_OUT})
 
 
-# Enable C++11 (or C++0x for older compilers)
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
-if(COMPILER_SUPPORTS_CXX11)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-elseif(COMPILER_SUPPORTS_CXX0X)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-else()
-        message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
-endif()
+SET(pyrbdl_SRCS
+	pyrbdl.cc 
+)
 
-# If the pyx file is a C++ file, we should specify that here.
-set_source_files_properties( ${CMAKE_CURRENT_BINARY_DIR}/rbdl.pyx PROPERTIES CYTHON_IS_CXX TRUE )
 
-# Multi-file cython modules do not appear to be working at the moment.
-# NOTE there is some directory property problem in UseCython when build
-#      from CMAKE_CURRENT_BINARY_DIR
-cython_add_module( rbdl-python ${CMAKE_CURRENT_BINARY_DIR}/rbdl.pyx )
+ADD_LIBRARY(pyrbdl SHARED ${pyrbdl_SRCS})
 
-#SET_TARGET_PROPERTIES ( rbdl-python PROPERTIES PREFIX "")
-SET_TARGET_PROPERTIES ( rbdl-python PROPERTIES OUTPUT_NAME "rbdl")
 
-IF (RBDL_USE_PYTHON_2)
-  INCLUDE_DIRECTORIES (
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/python
-    ${PROJECT_SOURCE_DIR}
-    ${PYTHON_NUMPY_2_INCLUDE_DIR}
-  )
-ELSE(RBDL_USE_PYTHON_2)
-  INCLUDE_DIRECTORIES (
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/python
-    ${PROJECT_SOURCE_DIR}
-    ${PYTHON_NUMPY_3_INCLUDE_DIR}
-  )
-ENDIF (RBDL_USE_PYTHON_2)
+#SET_TARGET_PROPERTIES(pyrbdl PROPERTIES PREFIX "")
+#SET_TARGET_PROPERTIES(pyrbdl PROPERTIES POSTFIX "")
 
-TARGET_LINK_LIBRARIES (rbdl-python rbdl )
+#SET_TARGET_PROPERTIES(pyrbdl PROPERTIES VERSION ${DIFFPHYS_VERSION})
+#SET_TARGET_PROPERTIES(pyrbdl PROPERTIES SOVERSION ${DIFFPHYS_VERSION})
+#SET_TARGET_PROPERTIES(pyrbdl PROPERTIES DEBUG_POSTFIX "_d")
 
-IF (RBDL_BUILD_ADDON_LUAMODEL)
-  TARGET_LINK_LIBRARIES (rbdl-python rbdl_luamodel )
-ENDIF()
 
-IF (RBDL_BUILD_ADDON_URDFREADER)
-  TARGET_LINK_LIBRARIES (rbdl-python rbdl_urdfreader )
-ENDIF()
+TARGET_LINK_LIBRARIES(pyrbdl rbdl_urdfreader-static rbdl-static )#tinyxml2)
 
-INSTALL ( CODE "EXECUTE_PROCESS(WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} COMMAND ${PYTHON_BIN} setup.py install)")
+
+IF (WIN32)
+  TARGET_COMPILE_OPTIONS(pyrbdl PUBLIC -bigobj)
+  MESSAGE("PYTHON_LIBRARIES")
+  MESSAGE(${PYTHON_LIBRARIES})
+  GET_FILENAME_COMPONENT(PYTHON_LIBRARY_DIR ${PYTHON_LIBRARIES} DIRECTORY)# CACHE)
+  MESSAGE("PYTHON_LIBRARY_DIR ")
+  MESSAGE(${PYTHON_LIBRARY_DIR})
+  target_link_directories (pyrbdl PUBLIC "${PYTHON_LIBRARY_DIR}")
+  TARGET_LINK_LIBRARIES(pyrbdl ${PYTHON_LIBRARIES})
+ELSEIF (APPLE)
+  SET_TARGET_PROPERTIES(pyrbdl PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+ENDIF ()
+
+
+
+
+
+
+
+
+
+

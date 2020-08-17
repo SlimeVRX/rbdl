@@ -7,7 +7,9 @@
 #include <fstream>
 #include <map>
 #include <stack>
-
+#ifdef _WIN32
+#undef max
+#endif
 #ifdef RBDL_USE_ROS_URDF_LIBRARY
 #include <urdf_model/model.h>
 #include <urdf_parser/urdf_parser.h>

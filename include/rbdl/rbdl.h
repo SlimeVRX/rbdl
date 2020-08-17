@@ -7,6 +7,7 @@
 
 #ifndef RBDL_H
 #define RBDL_H
+#include <windows.h>
 
 #include "rbdl/rbdl_math.h"
 #include "rbdl/rbdl_mathutils.h"
