@@ -60,7 +60,7 @@ struct RBDL_DLLAPI Body {
    */
   Body(const double &mass,
       const Eigen::Vector3d&com,
-      const Eigen::Vector3d&gyration_radii) :
+      const Eigen::Vector3d& gyration_radii) :
     mMass (mass),
     mCenterOfMass(com),
     mIsVirtual (false) {
@@ -70,6 +70,7 @@ struct RBDL_DLLAPI Body {
           0., 0., gyration_radii[2]
           );
     }
+
 
 
 
@@ -84,9 +85,10 @@ struct RBDL_DLLAPI Body {
    * \param com  the position of the center of mass in the bodies coordinates
    * \param inertia_C the inertia at the center of mass
    */
+
   Body(const double &mass,
-      const Math::Vector3d &com,
-      const Math::Matrix3d &inertia_C) :
+      const Eigen::Vector3d &com,
+      const Eigen::Matrix3d &inertia_C) :
     mMass (mass),
     mCenterOfMass(com),
     mInertia (inertia_C),
@@ -159,6 +161,7 @@ struct RBDL_DLLAPI Body {
 
     // 5. Transform the summed inertia to the new COM
     Math::Matrix3d new_inertia = inertia_summed - new_mass * Math::VectorCrossMatrix (new_com) * Math::VectorCrossMatrix(new_com).transpose();
+
 
     LOG << "new_mass = " << new_mass << std::endl;
     LOG << "new_com  = " << new_com.transpose() << std::endl;
