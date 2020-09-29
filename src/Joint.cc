@@ -14,7 +14,7 @@
 #include "rbdl/Model.h"
 #include "rbdl/Joint.h"
 
-#ifdef _WIN32
+#if defined(__APPLE__) or defined(_WIN32)
 inline void sincos(double val, double* s, double* c)
 {
   *s = sin(val);
