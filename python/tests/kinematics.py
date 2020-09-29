@@ -23,6 +23,4 @@ print("pos_world_a=",pos_world_a)
 print("pos_world_b=",pos_world_b)
 
 print("model.dof_count=", model.dof_count)
-while (1):
-  time.sleep(1)
   
