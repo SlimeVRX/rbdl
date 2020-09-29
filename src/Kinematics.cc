@@ -152,6 +152,16 @@ RBDL_DLLAPI void UpdateKinematicsCustom(
   }
 }
 
+void CalcBodyToBaseCoordinates2(
+  Model& model,
+  const VectorNd& Q,
+  unsigned int body_id,
+  const Vector3d& point_body_coordinates,
+  bool update_kinematics) {
+
+}
+
+
 RBDL_DLLAPI Vector3d CalcBodyToBaseCoordinates (
     Model &model,
     const VectorNd &Q,

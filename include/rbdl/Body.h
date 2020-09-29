@@ -59,8 +59,8 @@ struct RBDL_DLLAPI Body {
    * \param gyration_radii the radii of gyration at the center of mass of the body
    */
   Body(const double &mass,
-      const Math::Vector3d &com,
-      const Math::Vector3d &gyration_radii) :
+      const Eigen::Vector3d&com,
+      const Eigen::Vector3d&gyration_radii) :
     mMass (mass),
     mCenterOfMass(com),
     mIsVirtual (false) {
@@ -70,6 +70,8 @@ struct RBDL_DLLAPI Body {
           0., 0., gyration_radii[2]
           );
     }
+
+
 
   /** \brief Constructs a body from mass, center of mass, and a 3x3 inertia matrix 
    * 

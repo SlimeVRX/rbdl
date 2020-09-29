@@ -22,6 +22,8 @@
 #include "rbdl/Dynamics.h"
 #include "rbdl/Kinematics.h"
 #include "urdfreader.h"
+#include "rbdl/rbdl_math.h"
+
 namespace py = pybind11;
 
 Eigen::MatrixXd CompositeRigidBodyAlgorithm(RigidBodyDynamics::Model & model, const Eigen::VectorXd & Q, bool update_kinematics)
@@ -31,7 +33,6 @@ Eigen::MatrixXd CompositeRigidBodyAlgorithm(RigidBodyDynamics::Model & model, co
   RigidBodyDynamics::CompositeRigidBodyAlgorithm(model, Q, H, update_kinematics);
   return H;
 }
-
 
 RigidBodyDynamics::Math::MatrixNd CalcPointJacobian(RigidBodyDynamics::Model& model,
   const RigidBodyDynamics::Math::VectorNd& Q,
@@ -80,6 +81,97 @@ Eigen::MatrixXd createMatrixXd(int rows, int cols)
   return m;
 }
 
+Eigen::Matrix3d CalcBodyWorldOrientation2(
+  RigidBodyDynamics::Model& model,
+  const RigidBodyDynamics::Math::VectorNd& Q,
+  const unsigned int body_id,
+  bool update_kinematics) {
+
+  return CalcBodyWorldOrientation(model, Q, body_id, update_kinematics);
+}
+
+Eigen::Vector3d CalcBodyToBaseCoordinates2(
+  RigidBodyDynamics::Model& model,
+  const RigidBodyDynamics::Math::VectorNd& Q,
+  unsigned int body_id,
+  const Eigen::Vector3d& body_point_position,
+  bool update_kinematics)
+{
+  return CalcBodyToBaseCoordinates(model, Q, body_id, body_point_position);
+}
+
+Eigen::VectorXd InverseDynamics(
+  RigidBodyDynamics::Model& model,
+  const Eigen::VectorXd& Q,
+  const Eigen::VectorXd& QDot,
+  const Eigen::VectorXd& QDDot,
+  std::vector<Eigen::Matrix<double, 6, 1> >& f_ext_eigen)
+{
+  std::vector<RigidBodyDynamics::Math::SpatialVector>* f_ext = 0;
+  std::vector<RigidBodyDynamics::Math::SpatialVector> f_ext_internal;
+  for (int i = 0; i < f_ext_eigen.size(); i++)
+  {
+    f_ext_internal.push_back(f_ext_eigen[i]);
+    f_ext = &f_ext_internal;
+  }
+  
+  Eigen::VectorXd Tau;
+  RigidBodyDynamics::InverseDynamics(model, Q, QDot, QDDot, Tau, f_ext);
+  return Tau;
+}
+
+Eigen::VectorXd NonlinearEffects(
+  RigidBodyDynamics::Model& model,
+  const Eigen::VectorXd& Q,
+  const Eigen::VectorXd& QDot,
+  std::vector<Eigen::Matrix<double, 6, 1> >& f_ext_eigen)
+{
+  std::vector<RigidBodyDynamics::Math::SpatialVector>* f_ext = 0;
+  std::vector<RigidBodyDynamics::Math::SpatialVector> f_ext_internal;
+  for (int i = 0; i < f_ext_eigen.size(); i++)
+  {
+    f_ext_internal.push_back(f_ext_eigen[i]);
+    f_ext = &f_ext_internal;
+  }
+  Eigen::VectorXd Tau;
+  RigidBodyDynamics::NonlinearEffects(model, Q, QDot, Tau, f_ext );
+  return Tau;
+}
+
+Eigen::VectorXd ForwardDynamics(
+  RigidBodyDynamics::Model& model,
+  const Eigen::VectorXd& Q,
+  const Eigen::VectorXd& QDot,
+  const Eigen::VectorXd& Tau,
+  std::vector<Eigen::Matrix<double, 6, 1> >& f_ext_eigen)
+{
+  std::vector<RigidBodyDynamics::Math::SpatialVector>* f_ext = 0;
+  std::vector<RigidBodyDynamics::Math::SpatialVector> f_ext_internal;
+  for (int i = 0; i < f_ext_eigen.size(); i++)
+  {
+    f_ext_internal.push_back(f_ext_eigen[i]);
+    f_ext = &f_ext_internal;
+  }
+
+  Eigen::VectorXd QDDot;
+  RigidBodyDynamics::ForwardDynamics(model, Q, QDot, Tau, QDDot, f_ext );
+  return QDDot;
+  
+}
+
+
+inline RigidBodyDynamics::Math::SpatialTransform Xtrans(const Eigen::Vector3d& r) {
+  return RigidBodyDynamics::Math::SpatialTransform(
+    RigidBodyDynamics::Math::Matrix3d::Identity(3, 3),
+    r
+  );
+}
+
+
+
+
+
+
 PYBIND11_MODULE(pyrbdl, m) {
   m.doc() = R"pbdoc(
         rbdl bindings using pybind11
@@ -91,6 +183,12 @@ PYBIND11_MODULE(pyrbdl, m) {
            :toctree: _generate
 
     )pbdoc";
+
+  
+
+  py::class_< RigidBodyDynamics::Body>(m, "Body")
+    .def(py::init<const double, const Eigen::Vector3d&, const Eigen::Vector3d&>())
+    ;
 
   py::class_< RigidBodyDynamics::Model> (m, "Model")
     .def(py::init<>())
@@ -111,14 +209,19 @@ PYBIND11_MODULE(pyrbdl, m) {
     //.def("GetQuaternion", &RigidBodyDynamics::Model::GetQuaternion)
     //.def("SetQuaternion", &RigidBodyDynamics::Model::SetQuaternion)
     ;
-#if 0
+
   py::class_<RigidBodyDynamics::Joint>(m, "Joint")
     .def(py::init<>())
-    .def("validate_spatial_axis", &RigidBodyDynamics::Joint::validate_spatial_axis)
+    .def(py::init<Eigen::Matrix<double, 6, 1> >())
+    .def("validate_spatial_axis", &RigidBodyDynamics::Joint::validate_spatial_axis2)
     ;
 
-  //py::class_<RigidBodyDynamics::Math::VectorNd>(m, "VectorNd")    ;
-#endif
+  m.def("Xtrans", &Xtrans);
+
+  py::class_<RigidBodyDynamics::Math::SpatialTransform>(m, "SpatialTransform")
+    .def(py::init<>())
+    ;
+  
 
   m.def("jcalc", &RigidBodyDynamics::jcalc);
 
@@ -126,16 +229,17 @@ PYBIND11_MODULE(pyrbdl, m) {
   m.def("jcalc_X_lambda_S", &RigidBodyDynamics::jcalc_X_lambda_S);
   m.def("CalcPointJacobian", &CalcPointJacobian);
 
-
-
-  //m.def("InverseDynamics", &RigidBodyDynamics::InverseDynamics);
-  //m.def("NonlinearEffects", &RigidBodyDynamics::NonlinearEffects);
-  m.def("CompositeRigidBodyAlgorithm", &CompositeRigidBodyAlgorithm);
-#if 0  
+  m.def("CalcBodyToBaseCoordinates", &CalcBodyToBaseCoordinates2);
+  m.def("CalcBodyWorldOrientation", &CalcBodyWorldOrientation2);
   
-  m.def("ForwardDynamics", &RigidBodyDynamics::ForwardDynamics);
-  m.def("ForwardDynamicsLagrangian", &RigidBodyDynamics::ForwardDynamicsLagrangian);
-#endif
+
+  m.def("InverseDynamics", &InverseDynamics);
+  m.def("NonlinearEffects", &NonlinearEffects);
+  m.def("CompositeRigidBodyAlgorithm", &CompositeRigidBodyAlgorithm);
+
+  
+  m.def("ForwardDynamics", &ForwardDynamics);
+  //todo: m.def("ForwardDynamicsLagrangian", &ForwardDynamicsLagrangian);
  
   m.def("TestAlgorithm", &TestAlgorithm);
   m.def("TestAlgorithm2", &TestAlgorithm2);

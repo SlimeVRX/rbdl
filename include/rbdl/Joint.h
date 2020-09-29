@@ -602,6 +602,13 @@ struct RBDL_DLLAPI Joint {
     validate_spatial_axis (mJointAxes[5]);
   }
 
+  bool validate_spatial_axis2(Eigen::Matrix<double, 6, 1>& axis) {
+    Math::SpatialVector axis2 = axis;
+    return validate_spatial_axis(axis2);
+  }
+
+  
+
   /** \brief Checks whether we have pure rotational or translational axis.
    *
    * This function is mainly used to print out warnings when specifying an
