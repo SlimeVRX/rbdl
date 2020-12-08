@@ -14,13 +14,14 @@
 #include "rbdl/Model.h"
 #include "rbdl/Joint.h"
 
-#if defined(__APPLE__) or defined(_WIN32)
+#if defined(__APPLE__) || defined(_WIN32)
 inline void sincos(double val, double* s, double* c)
 {
   *s = sin(val);
   *c = cos(val);
 }
 #endif
+
 namespace RigidBodyDynamics {
 
 using namespace Math;
