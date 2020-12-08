@@ -154,6 +154,7 @@ Eigen::VectorXd ForwardDynamics(
   }
 
   Eigen::VectorXd QDDot;
+  QDDot.resize(QDot.size());
   RigidBodyDynamics::ForwardDynamics(model, Q, QDot, Tau, QDDot, f_ext );
   return QDDot;
   
@@ -195,6 +196,7 @@ PYBIND11_MODULE(pyrbdl, m) {
     .def_readonly("dof_count", &RigidBodyDynamics::Model::dof_count)
     .def_readonly("q_size", &RigidBodyDynamics::Model::q_size)
     .def_readonly("qdot_size", &RigidBodyDynamics::Model::qdot_size)
+    .def("set_gravity", &RigidBodyDynamics::Model::set_gravity)
     .def("AddBody", &RigidBodyDynamics::Model::AddBody)
     //.def("AddBodySphericalJoint", &RigidBodyDynamics::Model::AddBodySphericalJoint)
     .def("AppendBody", &RigidBodyDynamics::Model::AppendBody)
@@ -213,6 +215,7 @@ PYBIND11_MODULE(pyrbdl, m) {
   py::class_<RigidBodyDynamics::Joint>(m, "Joint")
     .def(py::init<>())
     .def(py::init<Eigen::Matrix<double, 6, 1> >())
+    .def(py::init< RigidBodyDynamics::JointType>())
     .def("validate_spatial_axis", &RigidBodyDynamics::Joint::validate_spatial_axis2)
     ;
 

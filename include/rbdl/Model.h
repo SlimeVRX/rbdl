@@ -161,6 +161,10 @@ struct RBDL_DLLAPI Model {
   /// \brief the cartesian vector of the gravity
   Math::Vector3d gravity;
 
+  void set_gravity(const Eigen::Vector3d& grav)
+  {
+    gravity = grav;
+  }
   // State information
   /// \brief The spatial velocity of the bodies
   std::vector<Math::SpatialVector> v;

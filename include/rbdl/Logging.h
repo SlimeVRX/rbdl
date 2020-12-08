@@ -19,11 +19,14 @@ class LoggingGuard;
  *
  * \warning Logging has a huge impact on performance.
  */
+//#define RBDL_ENABLE_LOGGING 1
 #ifndef RBDL_ENABLE_LOGGING
 #define LOG if (false) LogOutput 
 #define SUPPRESS_LOGGING ;
 #else
-#define LOG LogOutput
+
+#include <iostream>
+#define LOG std::cout
 #define SUPPRESS_LOGGING LoggingGuard _nolog
 #endif
 
