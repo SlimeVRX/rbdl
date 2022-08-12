@@ -1,16 +1,17 @@
 import numpy as np
-import rbdl
+import pyrbdl as rbdl
 
 # Create a new model
 model = rbdl.Model()
 
 # Create a joint from joint type
-joint_rot_y = rbdl.Joint.fromJointType ("JointTypeRevoluteY")
+# joint_rot_y = rbdl.Joint.fromJointType ("JointTypeRevoluteY")
+joint_rot_y = rbdl.JointType.JointTypeRevoluteY
 
 # Create a body for given mass, center of mass, and inertia at
 # the CoM
 body = rbdl.Body.fromMassComInertia (
-    1., 
+    1.,
     np.array([0., 0.5, 0.]),
     np.eye(3) * 0.05)
 xtrans= rbdl.SpatialTransform()

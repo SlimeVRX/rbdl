@@ -26,22 +26,27 @@
 
 namespace py = pybind11;
 
-Eigen::MatrixXd CompositeRigidBodyAlgorithm(RigidBodyDynamics::Model & model, const Eigen::VectorXd & Q, bool update_kinematics)
-{
-  Eigen::MatrixXd H(model.dof_count, model.dof_count);
-  H.setZero();
-  RigidBodyDynamics::CompositeRigidBodyAlgorithm(model, Q, H, update_kinematics);
-  return H;
-}
-
-RigidBodyDynamics::Math::MatrixNd CalcPointJacobian(RigidBodyDynamics::Model& model,
+RigidBodyDynamics::Math::MatrixNd CalcPointJacobian(
+  RigidBodyDynamics::Model& model,
   const RigidBodyDynamics::Math::VectorNd& Q,
+  unsigned int body_id,
   const Eigen::Vector3d& point_position,
-  unsigned int body_id,  bool update_kinematics)
+  bool update_kinematics)
 {
   RigidBodyDynamics::Math::MatrixNd G(3, model.qdot_size);
   G.setZero();
   RigidBodyDynamics::CalcPointJacobian(model, Q, body_id, point_position, G, update_kinematics);
+  return G;
+}
+
+RigidBodyDynamics::Math::MatrixNd UpdateKinematics(RigidBodyDynamics::Model& model,
+  const RigidBodyDynamics::Math::VectorNd& Q,
+  const RigidBodyDynamics::Math::VectorNd& QDot,
+  const RigidBodyDynamics::Math::VectorNd& QDDot)
+{
+  RigidBodyDynamics::Math::MatrixNd G(3, model.qdot_size);
+  G.setZero();
+  RigidBodyDynamics::UpdateKinematics(model, Q, QDot, QDDot);
   return G;
 }
 
@@ -100,6 +105,39 @@ Eigen::Vector3d CalcBodyToBaseCoordinates2(
   return CalcBodyToBaseCoordinates(model, Q, body_id, body_point_position);
 }
 
+Eigen::Vector3d CalcBaseToBodyCoordinates(
+  RigidBodyDynamics::Model& model,
+  const RigidBodyDynamics::Math::VectorNd& Q,
+  unsigned int body_id,
+  const Eigen::Vector3d& base_point_position,
+  bool update_kinematics)
+{
+  return CalcBaseToBodyCoordinates(model, Q, body_id, base_point_position);
+}
+
+Eigen::Vector3d CalcPointVelocity(
+  RigidBodyDynamics::Model& model,
+  const RigidBodyDynamics::Math::VectorNd& Q,
+  const RigidBodyDynamics::Math::VectorNd& QDot,
+  unsigned int body_id,
+  const Eigen::Vector3d& body_point_position,
+  bool update_kinematics)
+{
+  return CalcPointVelocity(model, Q, QDot, body_id, body_point_position);
+}
+
+Eigen::Vector3d CalcPointAcceleration(
+  RigidBodyDynamics::Model& model,
+  const RigidBodyDynamics::Math::VectorNd& Q,
+  const RigidBodyDynamics::Math::VectorNd& QDot,
+  const RigidBodyDynamics::Math::VectorNd& QDDot,
+  unsigned int body_id,
+  const Eigen::Vector3d& body_point_position,
+  bool update_kinematics)
+{
+  return CalcPointAcceleration(model, Q, QDot, QDDot, body_id, body_point_position);
+}
+
 Eigen::VectorXd InverseDynamics(
   RigidBodyDynamics::Model& model,
   const Eigen::VectorXd& Q,
@@ -114,28 +152,32 @@ Eigen::VectorXd InverseDynamics(
     f_ext_internal.push_back(f_ext_eigen[i]);
     f_ext = &f_ext_internal;
   }
-  
+
   Eigen::VectorXd Tau;
   RigidBodyDynamics::InverseDynamics(model, Q, QDot, QDDot, Tau, f_ext);
   return Tau;
 }
 
+Eigen::MatrixXd CompositeRigidBodyAlgorithm(
+  RigidBodyDynamics::Model & model,
+  const Eigen::VectorXd & Q,
+  bool update_kinematics)
+{
+  Eigen::MatrixXd H(model.dof_count, model.dof_count);
+  H.setZero();
+  RigidBodyDynamics::CompositeRigidBodyAlgorithm(model, Q, H, update_kinematics);
+  return H;
+}
+
 Eigen::VectorXd NonlinearEffects(
   RigidBodyDynamics::Model& model,
   const Eigen::VectorXd& Q,
-  const Eigen::VectorXd& QDot,
-  std::vector<Eigen::Matrix<double, 6, 1> >& f_ext_eigen)
+  const Eigen::VectorXd& QDot)
 {
-  std::vector<RigidBodyDynamics::Math::SpatialVector>* f_ext = 0;
-  std::vector<RigidBodyDynamics::Math::SpatialVector> f_ext_internal;
-  for (int i = 0; i < f_ext_eigen.size(); i++)
-  {
-    f_ext_internal.push_back(f_ext_eigen[i]);
-    f_ext = &f_ext_internal;
-  }
-  Eigen::VectorXd Tau;
-  RigidBodyDynamics::NonlinearEffects(model, Q, QDot, Tau, f_ext );
-  return Tau;
+  RigidBodyDynamics::Math::VectorNd H(model.qdot_size);
+  H.setZero();
+  RigidBodyDynamics::NonlinearEffects(model, Q, QDot, H);
+  return H;
 }
 
 Eigen::VectorXd ForwardDynamics(
@@ -157,7 +199,7 @@ Eigen::VectorXd ForwardDynamics(
   QDDot.resize(QDot.size());
   RigidBodyDynamics::ForwardDynamics(model, Q, QDot, Tau, QDDot, f_ext );
   return QDDot;
-  
+
 }
 
 
@@ -185,7 +227,7 @@ PYBIND11_MODULE(pyrbdl, m) {
 
     )pbdoc";
 
-  
+
 
   py::class_< RigidBodyDynamics::Body>(m, "Body")
     .def(py::init<const double, const Eigen::Vector3d&, const Eigen::Vector3d&>())
@@ -193,9 +235,36 @@ PYBIND11_MODULE(pyrbdl, m) {
 
   py::class_< RigidBodyDynamics::Model> (m, "Model")
     .def(py::init<>())
+//    .def_readonly("I", &RigidBodyDynamics::Model::I)
+//    .def_readonly("IA", &RigidBodyDynamics::Model::IA)
+//    .def_readonly("Ic", &RigidBodyDynamics::Model::Ic)
+//    .def_readonly("S", &RigidBodyDynamics::Model::S)
+//    .def_readonly("U", &RigidBodyDynamics::Model::U)
+//    .def_readonly("X_J", &RigidBodyDynamics::Model::X_J)
+//    .def_readonly("X_T", &RigidBodyDynamics::Model::X_T)
+//    .def_readonly("X_base", &RigidBodyDynamics::Model::X_base)
+//    .def_readonly("X_lambda", &RigidBodyDynamics::Model::X_lambda)
+//    .def_readonly("a", &RigidBodyDynamics::Model::a)
+//    .def_readonly("c", &RigidBodyDynamics::Model::c)
+//    .def_readonly("c_J", &RigidBodyDynamics::Model::c_J)
     .def_readonly("dof_count", &RigidBodyDynamics::Model::dof_count)
+//    .def_readonly("f", &RigidBodyDynamics::Model::f)
+//    .def_readonly("fixed_body_discriminator", &RigidBodyDynamics::Model::fixed_body_discriminator)
+    .def_readonly("gravity", &RigidBodyDynamics::Model::gravity)
+//    .def_readonly("hc", &RigidBodyDynamics::Model::hc)
+//    .def_readonly("mBodies", &RigidBodyDynamics::Model::mBodies)
+//    .def_readonly("mBodyNameMap", &RigidBodyDynamics::Model::mBodyNameMap)
+//    .def_readonly("mFixedBodies", &RigidBodyDynamics::Model::mFixedBodies)
+//    .def_readonly("mFixedJointCount", &RigidBodyDynamics::Model::mFixedJointCount)
+//    .def_readonly("mJointUpdateOrder", &RigidBodyDynamics::Model::mJointUpdateOrder)
+//    .def_readonly("mJoints", &RigidBodyDynamics::Model::mJoints)
+//    .def_readonly("multdof3_w_index", &RigidBodyDynamics::Model::multdof3_w_index)
+//    .def_readonly("pA", &RigidBodyDynamics::Model::pA)
+//    .def_readonly("previously_added_body_id", &RigidBodyDynamics::Model::previously_added_body_id)
     .def_readonly("q_size", &RigidBodyDynamics::Model::q_size)
     .def_readonly("qdot_size", &RigidBodyDynamics::Model::qdot_size)
+//    .def_readonly("v", &RigidBodyDynamics::Model::v)
+//    .def_readonly("v_J", &RigidBodyDynamics::Model::v_J)
     .def("set_gravity", &RigidBodyDynamics::Model::set_gravity)
     .def("AddBody", &RigidBodyDynamics::Model::AddBody)
     //.def("AddBodySphericalJoint", &RigidBodyDynamics::Model::AddBodySphericalJoint)
@@ -224,7 +293,7 @@ PYBIND11_MODULE(pyrbdl, m) {
   py::class_<RigidBodyDynamics::Math::SpatialTransform>(m, "SpatialTransform")
     .def(py::init<>())
     ;
-  
+
 
   m.def("jcalc", &RigidBodyDynamics::jcalc);
 
@@ -232,21 +301,26 @@ PYBIND11_MODULE(pyrbdl, m) {
   m.def("jcalc_X_lambda_S", &RigidBodyDynamics::jcalc_X_lambda_S);
   m.def("CalcPointJacobian", &CalcPointJacobian);
 
+  m.def("UpdateKinematics", &UpdateKinematics);
+
   m.def("CalcBodyToBaseCoordinates", &CalcBodyToBaseCoordinates2);
+  m.def("CalcBaseToBodyCoordinates", &CalcBaseToBodyCoordinates);
+  m.def("CalcPointVelocity", &CalcPointVelocity);
+  m.def("CalcPointAcceleration", &CalcPointAcceleration);
   m.def("CalcBodyWorldOrientation", &CalcBodyWorldOrientation2);
-  
+
 
   m.def("InverseDynamics", &InverseDynamics);
   m.def("NonlinearEffects", &NonlinearEffects);
   m.def("CompositeRigidBodyAlgorithm", &CompositeRigidBodyAlgorithm);
 
-  
+
   m.def("ForwardDynamics", &ForwardDynamics);
   //todo: m.def("ForwardDynamicsLagrangian", &ForwardDynamicsLagrangian);
- 
+
   m.def("TestAlgorithm", &TestAlgorithm);
   m.def("TestAlgorithm2", &TestAlgorithm2);
-  
+
   m.def("createVectorXd", &createVectorXd);
   m.def("createMatrixXd", &createMatrixXd);
 
